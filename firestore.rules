@@ -1,0 +1,41 @@
+rules_version = '2';
+// Crack the Locker: shared leaderboard rules.
+// Anyone can read. Each player (anonymous sign-in) can only add new runs to their own document.
+// Closed cases are kept in each player's own browser, so they are not stored here.
+// Admins are listed by hand in the console as documents in the "admins" collection (document ID = player ID).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function validRun(r) {
+      return r is map
+        && r.keys().hasAll(['name', 'cat', 'points', 'at'])
+        && r.name is string && r.name.size() >= 2 && r.name.size() <= 24
+        && r.cat is string && r.cat.size() <= 40
+        && r.points is int && r.points >= 0 && r.points <= 2000
+        && r.at is int;
+    }
+    function validPlayer(d) {
+      return d.keys().hasOnly(['name', 'at', 'runs'])
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 24
+        && d.runs is list && d.runs.size() <= 3000
+        && validRun(d.runs[d.runs.size() - 1]);
+    }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /players/{uid} {
+      allow read: if true;
+      allow create: if signedIn() && request.auth.uid == uid
+                    && validPlayer(request.resource.data)
+                    && request.resource.data.runs.size() == 1;
+      allow update: if signedIn() && request.auth.uid == uid
+                    && validPlayer(request.resource.data)
+                    && request.resource.data.runs.size() == resource.data.runs.size() + 1;
+      allow delete: if isAdmin();
+    }
+  }
+}
