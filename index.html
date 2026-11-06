@@ -1337,8 +1337,9 @@ subscribeAll();
     const auth=firebase.auth(),fs=firebase.firestore();
     if(window.FIREBASE_EMULATOR){auth.useEmulator('http://127.0.0.1:9099');fs.useEmulator('127.0.0.1',8080)}
     const cred=await auth.signInAnonymously();myUid=cred.user.uid;
-    try{canEdit=(await fs.doc('admins/'+myUid).get()).exists}catch(e){canEdit=false}
     clearTimeout(t);db=fbAdapter(fs);subscribeAll();
+    // admin status is watched live, so adding or removing an admin in the console takes effect without a reload
+    fs.doc('admins/'+myUid).onSnapshot(d=>{const was=canEdit;canEdit=!!d.exists;if(was!==canEdit){const w=document.getElementById('clearwrap');if(w){delete w.dataset.mode;w.innerHTML=''}onData();if(location.hash.slice(1)==='settings')viewSettings()}},e=>{console.warn('admin check',e&&e.code);canEdit=false});
   }catch(e){console.warn('Firebase unavailable',e&&e.code);clearTimeout(t);goLocal();live='device';paintLive()}
 })();
 async function getSol(card){const s=SOLS[card.id];if(!s)throw new Error('nosol');return s}
